@@ -56,6 +56,8 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
 .hero .sub{margin:0; color:var(--muted)}
 .hero-art{margin:12px -4px 4px}
 .hero-art svg{display:block; width:100%; height:auto; overflow:visible}
+.weather{display:inline-flex; align-items:center; gap:6px; margin:12px 0 2px; border:var(--thin); border-radius:999px; padding:3px 12px; background:var(--blue); font-weight:700; font-size:.95rem}
+.weather[hidden]{display:none}
 .count-label{margin:6px 0 8px; font-weight:700}
 .countdown{display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
 .countbox{border:var(--thin); border-radius:var(--r-sm); padding:8px 4px; text-align:center; background:var(--paper)}
@@ -333,6 +335,7 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
           </svg>
         </div>
       </div>
+      <p class="weather" id="weather" hidden></p>
       <p class="count-label" id="count-label">距離出發還有</p>
       <div id="count-area">
         <div class="countdown" role="timer" aria-label="出發倒數">
@@ -416,6 +419,7 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
   };
   s.onerror = function () { showError({ missing: true }); };
   document.head.appendChild(s);
+  loadWeather();
 
   function showError(info) {
     info = info || {};
@@ -696,6 +700,45 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
     if (fromOverview || tabsTop <= navH + 1) {
       window.scrollTo({ top: target, behavior: reduceMotion ? "auto" : "smooth" });
     }
+  }
+
+  /* ---------- 東京即時氣溫 ---------- */
+  // 查不到或格式不對就維持隱藏；錯誤一律吞掉，不能觸發上面的紅色錯誤框
+  // 只認官方代碼表上的代碼；表上沒有的（例如 52、98）只顯示氣溫
+  var WEATHER_CODES = {
+    0: ["☀️", "晴"], 1: ["🌤", "大致晴"], 2: ["⛅", "局部多雲"], 3: ["☁️", "陰"],
+    45: ["🌫", "霧"], 48: ["🌫", "霧"],
+    51: ["🌦", "毛毛雨"], 53: ["🌦", "毛毛雨"], 55: ["🌦", "毛毛雨"], 56: ["🌦", "毛毛雨"], 57: ["🌦", "毛毛雨"],
+    61: ["🌧", "雨"], 63: ["🌧", "雨"], 65: ["🌧", "雨"], 66: ["🌧", "雨"], 67: ["🌧", "雨"],
+    71: ["🌨", "雪"], 73: ["🌨", "雪"], 75: ["🌨", "雪"], 77: ["🌨", "雪"],
+    80: ["🌦", "陣雨"], 81: ["🌦", "陣雨"], 82: ["🌦", "陣雨"],
+    85: ["🌨", "陣雪"], 86: ["🌨", "陣雪"],
+    95: ["⛈", "雷雨"], 96: ["⛈", "雷雨"], 97: ["⛈", "雷雨"], 99: ["⛈", "雷雨"]
+  };
+  function weatherInfo(code) {
+    return typeof code === "number" && WEATHER_CODES.hasOwnProperty(code) ? WEATHER_CODES[code] : null;
+  }
+  function weatherLine(data) {
+    var c = data && data.current;
+    var t = c && c.temperature_2m;
+    if (typeof t !== "number" || !isFinite(t)) return null;
+    var w = weatherInfo(c.weather_code);
+    return (w ? w[0] : "🌡") + " 東京現在 " + (Math.round(t * 10) / 10).toFixed(1) + "°C" + (w ? "・" + w[1] : "");
+  }
+  function loadWeather() {
+    try {
+      if (!window.fetch) return;
+      fetch("https://api.open-meteo.com/v1/forecast?latitude=35.6812&longitude=139.7671&current=temperature_2m,weather_code&timezone=Asia%2FTokyo")
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function (data) {
+          var text = weatherLine(data);
+          if (!text) return;
+          var box = document.getElementById("weather");
+          box.textContent = text;
+          box.hidden = false;
+        })
+        .catch(function () {});
+    } catch (e) {}
   }
 
   /* ---------- 倒數 ---------- */
