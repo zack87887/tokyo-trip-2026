@@ -144,6 +144,25 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
 /* 住宿、待辦 */
 .two{display:grid; gap:12px}
 .box{border:var(--line); border-radius:var(--r-md); background:var(--card); padding:16px}
+
+/* 景點美食 */
+.spots-open{display:flex; align-items:center; justify-content:center; gap:8px; text-decoration:none; border:var(--line); border-radius:var(--r-md); background:var(--green); padding:12px 14px; margin:0 0 16px; font-weight:700; font-size:1.05rem; box-shadow:var(--lift)}
+.spots-open[hidden]{display:none}
+.spots-open:active{transform:translateY(3px); box-shadow:0 2px 0 var(--ink)}
+.areas{display:grid; gap:10px}
+.area{border:var(--line); border-radius:var(--r-md); background:var(--card); overflow:hidden}
+.area summary{display:flex; align-items:center; gap:8px; padding:10px 14px; cursor:pointer; font-weight:700; list-style:none}
+.area summary::-webkit-details-marker{display:none}
+.area summary small{margin-left:auto; color:var(--muted); font-weight:400; font-size:.85rem; white-space:nowrap}
+.area summary::after{content:"＋"; flex:none; width:24px; height:24px; border:var(--thin); border-radius:50%; display:grid; place-items:center; font-size:.85rem; line-height:1}
+.area[open] summary{border-bottom:var(--thin); background:var(--paper)}
+.area[open] summary::after{content:"－"}
+.spot-list{list-style:none; margin:0; padding:10px 14px 12px; display:grid; gap:10px}
+.spot{display:flex; align-items:flex-start; gap:8px}
+.spot .tag{flex:none; margin-top:2px}
+.tag.sight{background:var(--blue)} .tag.eat{background:var(--pink)}
+.spot a{font-weight:700}
+.spot-meta{display:block; font-size:.85rem; color:var(--muted)}
 .box h3{font-size:1.15rem; margin-bottom:6px}
 .box ul{margin:6px 0 0; padding-left:1.2em}
 .hotel{display:flex; gap:12px; align-items:flex-start}
@@ -181,6 +200,7 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
   .hero-grid{display:grid; grid-template-columns:1.1fr .9fr; gap:18px; align-items:center}
 }
 @media (min-width:980px){.overview{grid-template-columns:repeat(3,1fr)}}
+@media (min-width:760px){.areas{grid-template-columns:repeat(2,1fr); align-items:start}}
 @media (prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
   *,*::before,*::after{animation:none!important; transition:none!important}
@@ -258,7 +278,7 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
 <nav class="topbar" id="topbar">
   <div class="nav" aria-label="主選單">
     <a href="#home">首頁</a><a href="#overview">總覽</a><a href="#flights">航班</a>
-    <a href="#daily">每日行程</a><a href="#stay">住宿</a><a href="#todo">待辦</a>
+    <a href="#daily">每日行程</a><a href="#spots" id="nav-spots" hidden>景點美食</a><a href="#stay">住宿</a><a href="#todo">待辦</a>
   </div>
 </nav>
 
@@ -363,6 +383,12 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
     <h2 class="sec-title"><i style="background:var(--green)"></i>每日行程</h2>
     <div class="tabs" id="tabs" role="tablist" aria-label="選擇日期"></div>
     <div id="panels"></div>
+  </section>
+
+  <section id="spots" hidden>
+    <h2 class="sec-title"><i style="background:var(--pink)"></i>景點美食</h2>
+    <a class="spots-open" id="spots-open" target="_blank" rel="noopener">🗺️ 打開我的 Google 地圖清單</a>
+    <div class="areas" id="spot-areas"></div>
   </section>
 
   <section id="stay">
@@ -628,6 +654,41 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
 
     var start = days.findIndex ? days.findIndex(function (d) { return d.日期 === today; }) : -1;
     selectDay(start >= 0 ? start : 0, false, true);
+
+    // 景點美食（資料檔沒有這段就整區不顯示）
+    var sp = T.景點美食 || {};
+    var areas = list(sp.地區);
+    if (areas.length) {
+      document.getElementById("spots").hidden = false;
+      document.getElementById("nav-spots").hidden = false;
+      var so = document.getElementById("spots-open");
+      if (sp.清單連結) so.href = sp.清單連結; else so.hidden = true;
+      var areaBox = document.getElementById("spot-areas");
+      areas.forEach(function (a) {
+        var pts = list(a.地點);
+        var nSight = pts.filter(function (x) { return x.分類 === "景點"; }).length;
+        var nEat = pts.filter(function (x) { return x.分類 === "美食"; }).length;
+        var d = el("details", { "class": "area" });
+        var sm = el("summary");
+        sm.appendChild(el("span", null, a.名稱 || ""));
+        sm.appendChild(el("small", null, "景點 " + nSight + "・美食 " + nEat));
+        d.appendChild(sm);
+        var ul = el("ul", { "class": "spot-list" });
+        pts.forEach(function (x) {
+          var li = el("li", { "class": "spot" });
+          var cls = x.分類 === "景點" ? "tag sight" : x.分類 === "美食" ? "tag eat" : "tag";
+          li.appendChild(el("span", { "class": cls }, x.分類 || ""));
+          var body = el("div");
+          body.appendChild(x.地圖 ? el("a", { href: x.地圖, target: "_blank", rel: "noopener" }, x.名稱 || "") : el("b", null, x.名稱 || ""));
+          if (x.類型) body.appendChild(el("small", { "class": "spot-meta" }, x.類型));
+          if (x.附註) body.appendChild(el("small", { "class": "spot-meta" }, "💬 " + x.附註));
+          li.appendChild(body);
+          ul.appendChild(li);
+        });
+        d.appendChild(ul);
+        areaBox.appendChild(d);
+      });
+    }
 
     // 住宿
     var stay = T.住宿 || {};
