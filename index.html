@@ -134,6 +134,16 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
 .group{border:var(--thin); border-radius:var(--r-sm); padding:10px 12px; background:var(--paper)}
 .group b{display:block}
 .group p{margin:4px 0 0}
+.ride{margin-top:10px; border:var(--thin); border-radius:var(--r-sm); background:#F3F9FC}
+.ride summary{display:flex; align-items:center; gap:6px; padding:6px 12px; cursor:pointer; list-style:none; font-weight:700; font-size:.9rem}
+.ride summary::-webkit-details-marker{display:none}
+.ride summary::after{content:"＋"; margin-left:auto; flex:none}
+.ride[open] summary{border-bottom:var(--thin)}
+.ride[open] summary::after{content:"－"}
+.ride ol{margin:0; padding:8px 12px 8px 30px; display:grid; gap:6px}
+.ride li b{display:block; font-size:.95rem}
+.ride li small{display:block; color:var(--muted); font-size:.85rem; line-height:1.5}
+.ride .ride-tip{margin:0; padding:0 12px 8px; font-size:.85rem; color:var(--muted)}
 .links{list-style:none; margin:8px 0 0; padding:0; display:grid; gap:6px}
 .links li{display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px}
 .pill{display:inline-flex; align-items:center; gap:4px; text-decoration:none; border:var(--thin); border-radius:999px; padding:2px 12px; background:var(--green); font-weight:700; font-size:.92rem}
@@ -502,6 +512,24 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
     svg.appendChild(use);
     return svg;
   }
+  // 「🚃 怎麼搭」：預設收合，每段以「｜」切成起訖站（粗體）與線名站數（小字）
+  function rideBox(r) {
+    if (!r || !list(r.段).length) return null;
+    var d = el("details", { "class": "ride" });
+    // 收合列只放圖示＋摘要：加上「怎麼搭｜」在 375 寬會折成兩行
+    d.appendChild(el("summary", null, "🚃 " + (r.摘要 || "怎麼搭")));
+    var ol = el("ol");
+    list(r.段).forEach(function (seg) {
+      var parts = String(seg).split("｜");
+      var li = el("li");
+      li.appendChild(el("b", null, parts[0]));
+      if (parts.length > 1) li.appendChild(el("small", null, parts.slice(1).join("｜")));
+      ol.appendChild(li);
+    });
+    d.appendChild(ol);
+    if (r.提醒) d.appendChild(el("p", { "class": "ride-tip" }, "💡 " + r.提醒));
+    return d;
+  }
   function linkList(links) {
     var ul = el("ul", { "class": "links" });
     list(links).forEach(function (l) {
@@ -623,6 +651,7 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
         if (it.地點) card.appendChild(el("h4", { "class": "tl-place" }, it.地點));
         var tags = tagRow(it); if (tags) card.appendChild(tags);
         if (it.說明) card.appendChild(el("p", null, it.說明));
+        var rb = rideBox(it.乘車); if (rb) card.appendChild(rb);
         var gs = list(it.分組);
         if (gs.length) {
           var g = el("div", { "class": "groups" });
@@ -631,6 +660,7 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
             gb.appendChild(el("b", null, x.名稱 || ""));
             var gt = tagRow(x); if (gt) gb.appendChild(gt);
             if (x.內容) gb.appendChild(el("p", { style: "white-space:pre-line" }, x.內容));
+            var gr = rideBox(x.乘車); if (gr) gb.appendChild(gr);
             var gl = linkList(x.連結); if (gl) gb.appendChild(gl);
             g.appendChild(gb);
           });
