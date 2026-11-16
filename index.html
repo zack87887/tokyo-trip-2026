@@ -814,21 +814,74 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
     var t = c && c.temperature_2m;
     if (typeof t !== "number" || !isFinite(t)) return null;
     var w = weatherInfo(c.weather_code);
-    return (w ? w[0] : "🌡") + " 東京現在 " + (Math.round(t * 10) / 10).toFixed(1) + "°C" + (w ? "・" + w[1] : "");
+    var deg = Math.round(t) || 0; // 「|| 0」把 -0 變成 0
+    return (w ? w[0] : "🌡") + " 東京現在 " + deg + "°C" + (w ? "・" + w[1] : "");
   }
-  function loadWeather() {
+  // 天氣服務偶爾卡住好幾分鐘：先秀 3 小時內記住的氣溫，每次最多等 8 秒、只重試 1 次
+  var WEATHER_URL = "https://api.open-meteo.com/v1/forecast?latitude=35.6812&longitude=139.7671&current=temperature_2m,weather_code&timezone=Asia%2FTokyo";
+  var WEATHER_KEY = "tokyoWeatherV1";
+  var WEATHER_MAX_AGE = 3 * 60 * 60 * 1000;
+  var WEATHER_TIMEOUT = 8000;
+  var WEATHER_RETRIES = 1;
+  var weatherSeq = 0;
+  function showWeather(text) {
+    var box = document.getElementById("weather");
+    box.textContent = text;
+    box.hidden = false;
+  }
+  function readWeatherCache() {
     try {
-      if (!window.fetch) return;
-      fetch("https://api.open-meteo.com/v1/forecast?latitude=35.6812&longitude=139.7671&current=temperature_2m,weather_code&timezone=Asia%2FTokyo")
+      var c = JSON.parse(localStorage.getItem(WEATHER_KEY));
+      if (typeof c.at !== "number") return null;
+      var age = Date.now() - c.at;
+      if (!(age >= -60000 && age <= WEATHER_MAX_AGE)) return null;
+      return weatherLine({ current: { temperature_2m: c.t, weather_code: c.code } });
+    } catch (e) { return null; }
+  }
+  function saveWeatherCache(data) {
+    try {
+      localStorage.setItem(WEATHER_KEY, JSON.stringify({ t: data.current.temperature_2m, code: data.current.weather_code, at: Date.now() }));
+    } catch (e) {}
+  }
+  // 8 秒上限包含讀完內容與解析；逾時後才回來的結果，因 Promise 只會定案一次而被丟棄
+  function fetchWeatherOnce() {
+    return new Promise(function (resolve, reject) {
+      var ctrl = window.AbortController ? new AbortController() : null;
+      var timer = setTimeout(function () {
+        if (ctrl) ctrl.abort();
+        reject(new Error("timeout"));
+      }, WEATHER_TIMEOUT);
+      fetch(WEATHER_URL, ctrl ? { signal: ctrl.signal } : undefined)
         .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-        .then(function (data) {
-          var text = weatherLine(data);
-          if (!text) return;
-          var box = document.getElementById("weather");
-          box.textContent = text;
-          box.hidden = false;
-        })
-        .catch(function () {});
+        .then(function (data) { clearTimeout(timer); resolve(data); },
+              function (err) { clearTimeout(timer); reject(err); });
+    });
+  }
+  // loadWeather() 在檔案前段就被呼叫，那時本段的 var（含 WEATHER_CODES）還沒賦值；
+  // 用 setTimeout 0 等整段程式跑完再開始
+  function loadWeather() {
+    setTimeout(startWeather, 0);
+  }
+  function startWeather() {
+    try {
+      var cached = readWeatherCache();
+      if (cached) showWeather(cached);
+      if (!window.fetch || !window.Promise) return;
+      var attempt = function (left) {
+        var id = ++weatherSeq;
+        fetchWeatherOnce()
+          .then(function (data) {
+            if (id !== weatherSeq) return;
+            var text = weatherLine(data);
+            if (!text) throw new Error("bad data");
+            showWeather(text);
+            saveWeatherCache(data);
+          })
+          .catch(function () {
+            if (id === weatherSeq && left > 0) attempt(left - 1);
+          });
+      };
+      attempt(WEATHER_RETRIES);
     } catch (e) {}
   }
 
