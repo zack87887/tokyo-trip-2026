@@ -817,12 +817,14 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
     var deg = Math.round(t) || 0; // 「|| 0」把 -0 變成 0
     return (w ? w[0] : "🌡") + " 東京現在 " + deg + "°C" + (w ? "・" + w[1] : "");
   }
-  // 天氣服務偶爾卡住好幾分鐘：先秀 3 小時內記住的氣溫，每次最多等 8 秒、只重試 1 次
+  // 天氣服務偶爾卡住好幾分鐘（台灣連 Open-Meteo 曾整段不通）：先秀 3 小時內記住的氣溫；
+  // Open-Meteo 最多等 8 秒，失敗改問日本氣象廳東京站實測（兩步合計最多 8 秒，只有氣溫、沒有天氣分類）
   var WEATHER_URL = "https://api.open-meteo.com/v1/forecast?latitude=35.6812&longitude=139.7671&current=temperature_2m,weather_code&timezone=Asia%2FTokyo";
+  var JMA_BASE = "https://www.jma.go.jp/bosai/amedas/data/";
+  var JMA_STATION = "44132"; // 東京
   var WEATHER_KEY = "tokyoWeatherV1";
   var WEATHER_MAX_AGE = 3 * 60 * 60 * 1000;
   var WEATHER_TIMEOUT = 8000;
-  var WEATHER_RETRIES = 1;
   var weatherSeq = 0;
   function showWeather(text) {
     var box = document.getElementById("weather");
@@ -844,18 +846,48 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
     } catch (e) {}
   }
   // 8 秒上限包含讀完內容與解析；逾時後才回來的結果，因 Promise 只會定案一次而被丟棄
-  function fetchWeatherOnce() {
+  function withTimeout(work) {
     return new Promise(function (resolve, reject) {
       var ctrl = window.AbortController ? new AbortController() : null;
       var timer = setTimeout(function () {
         if (ctrl) ctrl.abort();
         reject(new Error("timeout"));
       }, WEATHER_TIMEOUT);
-      fetch(WEATHER_URL, ctrl ? { signal: ctrl.signal } : undefined)
-        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      work(ctrl ? { signal: ctrl.signal } : undefined)
         .then(function (data) { clearTimeout(timer); resolve(data); },
               function (err) { clearTimeout(timer); reject(err); });
     });
+  }
+  function fetchOk(url, opts) {
+    return fetch(url, opts).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r; });
+  }
+  function fetchOpenMeteo(opts) {
+    return fetchOk(WEATHER_URL, opts).then(function (r) { return r.json(); });
+  }
+  // 回傳與 Open-Meteo 同形的資料（代碼 null），顯示與紀錄共用同一套。
+  // 時刻字串是日本時間，鍵與檔名直接從字串組，不經手機時區換算；
+  // 單站檔每 3 小時一檔（00、03…21 時）
+  function fetchJma(opts) {
+    var key;
+    return fetchOk(JMA_BASE + "latest_time.txt", opts)
+      .then(function (r) { return r.text(); })
+      .then(function (s) {
+        var latest = String(s).trim();
+        var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):00\+09:00$/.exec(latest);
+        if (!m) throw new Error("bad time");
+        var age = Date.now() - Date.parse(latest);
+        if (!(age >= -5 * 60000 && age <= 90 * 60000)) throw new Error("stale time");
+        key = m[1] + m[2] + m[3] + m[4] + m[5] + "00";
+        var block = ("0" + Math.floor(+m[4] / 3) * 3).slice(-2);
+        return fetchOk(JMA_BASE + "point/" + JMA_STATION + "/" + m[1] + m[2] + m[3] + "_" + block + ".json", opts);
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var t = d && d[key] && d[key].temp;
+        // 第二個值是品質旗標，0 才是正常值
+        if (!Array.isArray(t) || t.length !== 2 || t[1] !== 0) throw new Error("bad temp");
+        return { current: { temperature_2m: t[0], weather_code: null } };
+      });
   }
   // loadWeather() 在檔案前段就被呼叫，那時本段的 var（含 WEATHER_CODES）還沒賦值；
   // 用 setTimeout 0 等整段程式跑完再開始
@@ -867,9 +899,10 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
       var cached = readWeatherCache();
       if (cached) showWeather(cached);
       if (!window.fetch || !window.Promise) return;
-      var attempt = function (left) {
+      var sources = [fetchOpenMeteo, fetchJma];
+      var attempt = function (i) {
         var id = ++weatherSeq;
-        fetchWeatherOnce()
+        withTimeout(sources[i])
           .then(function (data) {
             if (id !== weatherSeq) return;
             var text = weatherLine(data);
@@ -878,10 +911,10 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
             saveWeatherCache(data);
           })
           .catch(function () {
-            if (id === weatherSeq && left > 0) attempt(left - 1);
+            if (id === weatherSeq && i + 1 < sources.length) attempt(i + 1);
           });
       };
-      attempt(WEATHER_RETRIES);
+      attempt(0);
     } catch (e) {}
   }
 
