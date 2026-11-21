@@ -58,6 +58,17 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
 .hero-art svg{display:block; width:100%; height:auto; overflow:visible}
 .weather{display:inline-flex; align-items:center; gap:6px; margin:12px 0 2px; border:var(--thin); border-radius:999px; padding:3px 12px; background:var(--blue); font-weight:700; font-size:.95rem}
 .weather[hidden]{display:none}
+.weathers{display:flex; flex-wrap:wrap; gap:0 6px}
+
+/* 匯率計算 */
+.rate-card{border:var(--line); border-radius:var(--r-md); background:var(--card); padding:14px}
+.rate-now{margin:0 0 10px; font-weight:700}
+.rate-row{display:flex; align-items:center; gap:8px}
+.rate-in{flex:1; min-width:0; font:inherit; font-size:1.3rem; font-weight:700; border:var(--thin); border-radius:var(--r-sm); padding:6px 10px; background:var(--paper)}
+.rate-from{flex:none; font-weight:700}
+.rate-swap{display:block; margin:10px 0 0; border:var(--thin); border-radius:999px; padding:6px 14px; background:var(--yellow); font-weight:700; cursor:pointer}
+.rate-out{margin:10px 0 0; font-size:1.5rem; font-weight:700}
+.rate-note{margin:6px 0 0; font-size:.85rem; color:var(--muted)}
 .count-label{margin:6px 0 8px; font-weight:700}
 .countdown{display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
 .countbox{border:var(--thin); border-radius:var(--r-sm); padding:8px 4px; text-align:center; background:var(--paper)}
@@ -287,7 +298,7 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
 
 <nav class="topbar" id="topbar">
   <div class="nav" aria-label="主選單">
-    <a href="#home">首頁</a><a href="#overview">總覽</a><a href="#flights">航班</a>
+    <a href="#home">首頁</a><a href="#rate">匯率</a><a href="#overview">總覽</a><a href="#flights">航班</a>
     <a href="#daily">每日行程</a><a href="#spots" id="nav-spots" hidden>景點美食</a><a href="#stay">住宿</a><a href="#todo">待辦</a>
   </div>
 </nav>
@@ -365,7 +376,10 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
           </svg>
         </div>
       </div>
-      <p class="weather" id="weather" hidden></p>
+      <div class="weathers">
+        <p class="weather" id="weather" hidden></p>
+        <p class="weather" id="weather-fuji" hidden></p>
+      </div>
       <p class="count-label" id="count-label">距離出發還有</p>
       <div id="count-area">
         <div class="countdown" role="timer" aria-label="出發倒數">
@@ -376,6 +390,17 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
         </div>
       </div>
       <ul class="intro" id="intro"></ul>
+    </div>
+  </section>
+
+  <section id="rate">
+    <h2 class="sec-title"><i style="background:var(--yellow)"></i>匯率計算</h2>
+    <div class="rate-card">
+      <p class="rate-now" id="rate-now">匯率讀取中…</p>
+      <label class="rate-row"><input class="rate-in" id="rate-in" type="text" inputmode="decimal" value="1000" aria-label="金額"><span class="rate-from" id="rate-from">日圓</span></label>
+      <button type="button" class="rate-swap" id="rate-swap">⇅ 切換成 台幣 → 日圓</button>
+      <p class="rate-out" id="rate-out" aria-live="polite">—</p>
+      <p class="rate-note">每天更新的市場中間價，實際換錢以銀行或店家為準。</p>
     </div>
   </section>
 
@@ -456,6 +481,7 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
   s.onerror = function () { showError({ missing: true }); };
   document.head.appendChild(s);
   loadWeather();
+  loadRate();
 
   function showError(info) {
     info = info || {};
@@ -793,7 +819,7 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
     }
   }
 
-  /* ---------- 東京即時氣溫 ---------- */
+  /* ---------- 即時氣溫（東京、富士山） ---------- */
   // 查不到或格式不對就維持隱藏；錯誤一律吞掉，不能觸發上面的紅色錯誤框
   // 只認官方代碼表上的代碼；表上沒有的（例如 52、98）只顯示氣溫
   var WEATHER_CODES = {
@@ -809,40 +835,43 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
   function weatherInfo(code) {
     return typeof code === "number" && WEATHER_CODES.hasOwnProperty(code) ? WEATHER_CODES[code] : null;
   }
-  function weatherLine(data) {
+  function weatherLine(name, data) {
     var c = data && data.current;
     var t = c && c.temperature_2m;
     if (typeof t !== "number" || !isFinite(t)) return null;
     var w = weatherInfo(c.weather_code);
     var deg = Math.round(t) || 0; // 「|| 0」把 -0 變成 0
-    return (w ? w[0] : "🌡") + " 東京現在 " + deg + "°C" + (w ? "・" + w[1] : "");
+    return (w ? w[0] : "🌡") + " " + name + "現在 " + deg + "°C" + (w ? "・" + w[1] : "");
   }
   // 天氣服務偶爾卡住好幾分鐘（台灣連 Open-Meteo 曾整段不通）：先秀 3 小時內記住的氣溫；
-  // Open-Meteo 最多等 8 秒，失敗改問日本氣象廳東京站實測（兩步合計最多 8 秒，只有氣溫、沒有天氣分類）
-  var WEATHER_URL = "https://api.open-meteo.com/v1/forecast?latitude=35.6812&longitude=139.7671&current=temperature_2m,weather_code&timezone=Asia%2FTokyo";
+  // Open-Meteo 最多等 8 秒，失敗改問日本氣象廳實測站（兩步合計最多 8 秒，只有氣溫、沒有天氣分類）
+  // 富士山顯示名固定「富士山」，資料取河口湖（Zack 指定）
+  var WEATHER_PLACES = [
+    { name: "東京", box: "weather", key: "tokyoWeatherV1", station: "44132",
+      url: "https://api.open-meteo.com/v1/forecast?latitude=35.6812&longitude=139.7671&current=temperature_2m,weather_code&timezone=Asia%2FTokyo" },
+    { name: "富士山", box: "weather-fuji", key: "fujiWeatherV1", station: "49251",
+      url: "https://api.open-meteo.com/v1/forecast?latitude=35.5&longitude=138.76&current=temperature_2m,weather_code&timezone=Asia%2FTokyo" }
+  ];
   var JMA_BASE = "https://www.jma.go.jp/bosai/amedas/data/";
-  var JMA_STATION = "44132"; // 東京
-  var WEATHER_KEY = "tokyoWeatherV1";
   var WEATHER_MAX_AGE = 3 * 60 * 60 * 1000;
   var WEATHER_TIMEOUT = 8000;
-  var weatherSeq = 0;
-  function showWeather(text) {
-    var box = document.getElementById("weather");
+  function showWeather(place, text) {
+    var box = document.getElementById(place.box);
     box.textContent = text;
     box.hidden = false;
   }
-  function readWeatherCache() {
+  function readWeatherCache(place) {
     try {
-      var c = JSON.parse(localStorage.getItem(WEATHER_KEY));
+      var c = JSON.parse(localStorage.getItem(place.key));
       if (typeof c.at !== "number") return null;
       var age = Date.now() - c.at;
       if (!(age >= -60000 && age <= WEATHER_MAX_AGE)) return null;
-      return weatherLine({ current: { temperature_2m: c.t, weather_code: c.code } });
+      return weatherLine(place.name, { current: { temperature_2m: c.t, weather_code: c.code } });
     } catch (e) { return null; }
   }
-  function saveWeatherCache(data) {
+  function saveWeatherCache(place, data) {
     try {
-      localStorage.setItem(WEATHER_KEY, JSON.stringify({ t: data.current.temperature_2m, code: data.current.weather_code, at: Date.now() }));
+      localStorage.setItem(place.key, JSON.stringify({ t: data.current.temperature_2m, code: data.current.weather_code, at: Date.now() }));
     } catch (e) {}
   }
   // 8 秒上限包含讀完內容與解析；逾時後才回來的結果，因 Promise 只會定案一次而被丟棄
@@ -861,13 +890,13 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
   function fetchOk(url, opts) {
     return fetch(url, opts).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r; });
   }
-  function fetchOpenMeteo(opts) {
-    return fetchOk(WEATHER_URL, opts).then(function (r) { return r.json(); });
+  function fetchOpenMeteo(place, opts) {
+    return fetchOk(place.url, opts).then(function (r) { return r.json(); });
   }
   // 回傳與 Open-Meteo 同形的資料（代碼 null），顯示與紀錄共用同一套。
   // 時刻字串是日本時間，鍵與檔名直接從字串組，不經手機時區換算；
   // 單站檔每 3 小時一檔（00、03…21 時）
-  function fetchJma(opts) {
+  function fetchJma(place, opts) {
     var key;
     return fetchOk(JMA_BASE + "latest_time.txt", opts)
       .then(function (r) { return r.text(); })
@@ -879,7 +908,7 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
         if (!(age >= -5 * 60000 && age <= 90 * 60000)) throw new Error("stale time");
         key = m[1] + m[2] + m[3] + m[4] + m[5] + "00";
         var block = ("0" + Math.floor(+m[4] / 3) * 3).slice(-2);
-        return fetchOk(JMA_BASE + "point/" + JMA_STATION + "/" + m[1] + m[2] + m[3] + "_" + block + ".json", opts);
+        return fetchOk(JMA_BASE + "point/" + place.station + "/" + m[1] + m[2] + m[3] + "_" + block + ".json", opts);
       })
       .then(function (r) { return r.json(); })
       .then(function (d) {
@@ -892,27 +921,101 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
   // loadWeather() 在檔案前段就被呼叫，那時本段的 var（含 WEATHER_CODES）還沒賦值；
   // 用 setTimeout 0 等整段程式跑完再開始
   function loadWeather() {
-    setTimeout(startWeather, 0);
+    setTimeout(function () { WEATHER_PLACES.forEach(startWeather); }, 0);
   }
-  function startWeather() {
+  // 每個地點各自的請求編號與重試，一地卡住不影響另一地
+  function startWeather(place) {
     try {
-      var cached = readWeatherCache();
-      if (cached) showWeather(cached);
+      var cached = readWeatherCache(place);
+      if (cached) showWeather(place, cached);
       if (!window.fetch || !window.Promise) return;
+      var seq = 0;
       var sources = [fetchOpenMeteo, fetchJma];
       var attempt = function (i) {
-        var id = ++weatherSeq;
-        withTimeout(sources[i])
+        var id = ++seq;
+        withTimeout(function (opts) { return sources[i](place, opts); })
           .then(function (data) {
-            if (id !== weatherSeq) return;
-            var text = weatherLine(data);
+            if (id !== seq) return;
+            var text = weatherLine(place.name, data);
             if (!text) throw new Error("bad data");
-            showWeather(text);
-            saveWeatherCache(data);
+            showWeather(place, text);
+            saveWeatherCache(place, data);
           })
           .catch(function () {
-            if (id === weatherSeq && i + 1 < sources.length) attempt(i + 1);
+            if (id === seq && i + 1 < sources.length) attempt(i + 1);
           });
+      };
+      attempt(0);
+    } catch (e) {}
+  }
+
+  /* ---------- 匯率計算器（日圓／台幣） ---------- */
+  // 免費來源每天一筆市場中間價；主網址失敗改用官方建議的備援網址
+  var RATE_URLS = [
+    "https://latest.currency-api.pages.dev/v1/currencies/jpy.json",
+    "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/jpy.json"
+  ];
+  var RATE_KEY = "jpyTwdRateV1";
+  var rateNow = null; // { rate: 1 日圓換幾台幣, date: "YYYY-MM-DD" }
+  var rateFromJpy = true;
+  function validRateDate(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
+    if (!m) return false;
+    var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    return d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3];
+  }
+  function validRate(r) {
+    return r && typeof r.rate === "number" && isFinite(r.rate) && r.rate >= 0.1 && r.rate <= 0.5 && validRateDate(r.date);
+  }
+  function fmtInt(n) {
+    return String(Math.round(n) || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+  function showRate() {
+    var head = document.getElementById("rate-now");
+    if (!rateNow) { head.textContent = "暫時抓不到匯率，請稍後重新整理"; }
+    else {
+      head.textContent = "1 日圓 ≈ " + rateNow.rate.toFixed(4) + " 台幣・1 台幣 ≈ " + (1 / rateNow.rate).toFixed(2) + " 日圓（匯率日期 " + rateNow.date + "）";
+    }
+    calcRate();
+  }
+  function calcRate() {
+    var out = document.getElementById("rate-out");
+    document.getElementById("rate-from").textContent = rateFromJpy ? "日圓" : "台幣";
+    document.getElementById("rate-swap").textContent = rateFromJpy ? "⇅ 切換成 台幣 → 日圓" : "⇅ 切換成 日圓 → 台幣";
+    var raw = String(document.getElementById("rate-in").value).replace(/[,\s，]/g, "");
+    if (!/^\d+(\.\d+)?$/.test(raw)) { out.textContent = "請輸入金額"; return; }
+    if (!rateNow) { out.textContent = "—"; return; }
+    var v = Number(raw);
+    out.textContent = rateFromJpy ? "≈ " + fmtInt(v * rateNow.rate) + " 台幣" : "≈ " + fmtInt(v / rateNow.rate) + " 日圓";
+  }
+  function fetchRate(url) {
+    return withTimeout(function (opts) {
+      return fetchOk(url, opts).then(function (r) { return r.json(); }).then(function (d) {
+        var r = { rate: d && d.jpy && d.jpy.twd, date: d && d.date };
+        if (!validRate(r)) throw new Error("bad rate");
+        return r;
+      });
+    });
+  }
+  function loadRate() {
+    setTimeout(startRate, 0);
+  }
+  function startRate() {
+    try {
+      document.getElementById("rate-in").addEventListener("input", calcRate);
+      document.getElementById("rate-swap").addEventListener("click", function () { rateFromJpy = !rateFromJpy; calcRate(); });
+      try { var c = JSON.parse(localStorage.getItem(RATE_KEY)); if (validRate(c)) rateNow = { rate: c.rate, date: c.date }; } catch (e) {}
+      if (rateNow || !window.fetch || !window.Promise) showRate();
+      if (!window.fetch || !window.Promise) return;
+      // 依序試；抓到的日期比手上的舊就不用，繼續試下一個；同日或較新才更新
+      var attempt = function (i) {
+        if (i >= RATE_URLS.length) { showRate(); return; }
+        fetchRate(RATE_URLS[i]).then(function (r) {
+          if (rateNow && r.date < rateNow.date) { attempt(i + 1); return; }
+          rateNow = r;
+          try { localStorage.setItem(RATE_KEY, JSON.stringify({ rate: r.rate, date: r.date, at: Date.now() })); } catch (e) {}
+          showRate();
+        }, function () { attempt(i + 1); });
       };
       attempt(0);
     } catch (e) {}
