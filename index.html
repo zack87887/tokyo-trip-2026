@@ -78,6 +78,7 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
 .trip-now{border:var(--thin); border-radius:var(--r-sm); padding:12px; background:var(--green); font-weight:700; text-align:center}
 .intro{margin:14px 0 0; padding-left:1.1em}
 .intro li{margin:2px 0}
+.intro a{overflow-wrap:anywhere}
 
 /* 標題 */
 .sec-title{display:flex; align-items:center; gap:10px; font-size:1.45rem; margin:0 0 14px}
@@ -593,7 +594,16 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
     if (T.標題) document.getElementById("title").textContent = T.標題;
     if (T.副標) document.getElementById("subtitle").textContent = T.副標;
     var intro = document.getElementById("intro");
-    list(T.說明).forEach(function (t) { intro.appendChild(el("li", null, t)); });
+    // 說明的一行可以寫成 ["文字", "網址"]，網址顯示成可點的連結
+    list(T.說明).forEach(function (t) {
+      if (Array.isArray(t) && /^https:\/\//.test(t[1])) {
+        var li = el("li", null, t[0]);
+        li.appendChild(el("a", { href: t[1], target: "_blank", rel: "noopener" }, t[1]));
+        intro.appendChild(li);
+      } else {
+        intro.appendChild(el("li", null, t));
+      }
+    });
     document.getElementById("updated").textContent = T.更新日期 || "—";
     document.getElementById("footer-note").textContent = T.頁尾 || "";
 
