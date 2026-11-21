@@ -33,7 +33,7 @@ window.TRIP = {
     "餐廳是順路備選，每餐擇一；11 人可分桌或分組用餐。",
     "車費是大人用交通卡（Suica／PASMO）的價格；6～11 歲付小孩票約半價，未滿 6 歲免費，但一位大人最多帶 2 位免費幼兒。",
     // 要放連結就寫成 ["文字", "網址"]
-    ["日本入境電子簽證網址：", "https://www.vjw.digital.go.jp/main/#/vjwplo001"]
+    ["日本入境申報網址：", "https://www.vjw.digital.go.jp/main/#/vjwplo001"]
   ],
 
   住宿: {
