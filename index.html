@@ -539,6 +539,9 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
 <script>
 (function () {
   "use strict";
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+  if (location.hash) { try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {} }
+  window.scrollTo(0, 0);
   var dataError = null;
 
   // 行程內容檔有語法錯誤時，抓出第幾行，給改檔的人看
@@ -894,7 +897,10 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
       void panels[i].offsetWidth;  // 重新觸發彈跳動畫
       panels[i].classList.add("bounce");
     }
-    tabs[i].scrollIntoView({ block: "nearest", inline: "center", behavior: reduceMotion || initial ? "auto" : "smooth" });
+    var bar = document.getElementById("tabs");
+    var left = Math.max(0, tabs[i].offsetLeft - (bar.clientWidth - tabs[i].offsetWidth) / 2);
+    if (bar.scrollTo) bar.scrollTo({ left: left, behavior: reduceMotion || initial ? "auto" : "smooth" });
+    else bar.scrollLeft = left;
     if (initial) return;
     var navH = document.getElementById("topbar").offsetHeight;
     var tabsBox = document.getElementById("tabs");
