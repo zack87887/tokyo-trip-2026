@@ -332,8 +332,8 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
 
 <nav class="topbar" id="topbar">
   <div class="nav" aria-label="主選單">
-    <a href="#home">首頁</a><a href="#rate">匯率</a><a href="#overview">總覽</a><a href="#flights">航班</a>
-    <a href="#daily">每日行程</a><a href="#spots" id="nav-spots" hidden>景點美食</a><a href="#stay">住宿</a><a href="#expense">記帳</a><a href="#todo">待辦</a>
+    <a href="#home">首頁</a><a href="#rate">匯率</a><a href="#expense">記帳</a><a href="#overview">總覽</a><a href="#flights">航班</a>
+    <a href="#daily">每日行程</a><a href="#spots" id="nav-spots" hidden>景點美食</a><a href="#stay">住宿</a><a href="#todo">待辦</a>
   </div>
 </nav>
 
@@ -438,46 +438,6 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
     </div>
   </section>
 
-  <section id="overview">
-    <h2 class="sec-title"><i style="background:var(--pink)"></i>六天總覽</h2>
-    <div class="overview" id="overview-list"></div>
-  </section>
-
-  <section id="flights">
-    <h2 class="sec-title"><i style="background:var(--blue)"></i>航班</h2>
-    <div class="flights" id="flight-list"></div>
-  </section>
-
-  <section id="daily">
-    <h2 class="sec-title"><i style="background:var(--green)"></i>每日行程</h2>
-    <div class="tabs" id="tabs" role="tablist" aria-label="選擇日期"></div>
-    <div id="panels"></div>
-  </section>
-
-  <section id="spots" hidden>
-    <h2 class="sec-title"><i style="background:var(--pink)"></i>景點美食</h2>
-    <a class="spots-open" id="spots-open" target="_blank" rel="noopener">🗺️ 打開我的 Google 地圖清單</a>
-    <div class="areas" id="spot-areas"></div>
-  </section>
-
-  <section id="stay">
-    <h2 class="sec-title"><i style="background:var(--yellow)"></i>住宿資訊</h2>
-    <div class="two">
-      <div class="box hotel">
-        <svg aria-hidden="true"><use href="#ic-hotel"/></svg>
-        <div>
-          <h3 id="hotel-name"></h3>
-          <p id="hotel-desc" style="margin:0"></p>
-          <ul class="links"><li><a class="pill" id="hotel-map" target="_blank" rel="noopener">📍 開啟 Google Maps</a></li></ul>
-        </div>
-      </div>
-      <div class="box">
-        <h3>旅行規則</h3>
-        <ul id="rules"></ul>
-      </div>
-    </div>
-  </section>
-
   <section id="expense">
     <h2 class="sec-title"><i style="background:var(--green)"></i>旅途記帳</h2>
     <p class="small exp-hint">只記在你這支手機的 Chrome 裡，別人看不到。請一律用 Chrome 打開（從 LINE 或 Safari 打開會是另一本帳）；要放主畫面圖示，手機的預設瀏覽器要是 Chrome。不要同時開兩個分頁記帳。每天晚上按「複製成文字」或「下載檔案」留一份；回國後一週內整理完。</p>
@@ -515,6 +475,46 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
           <button type="button" class="exp-btn exp-main" id="exp-restore-ok">確定取代</button>
           <button type="button" class="exp-btn" id="exp-restore-no">取消</button>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="overview">
+    <h2 class="sec-title"><i style="background:var(--pink)"></i>六天總覽</h2>
+    <div class="overview" id="overview-list"></div>
+  </section>
+
+  <section id="flights">
+    <h2 class="sec-title"><i style="background:var(--blue)"></i>航班</h2>
+    <div class="flights" id="flight-list"></div>
+  </section>
+
+  <section id="daily">
+    <h2 class="sec-title"><i style="background:var(--green)"></i>每日行程</h2>
+    <div class="tabs" id="tabs" role="tablist" aria-label="選擇日期"></div>
+    <div id="panels"></div>
+  </section>
+
+  <section id="spots" hidden>
+    <h2 class="sec-title"><i style="background:var(--pink)"></i>景點美食</h2>
+    <a class="spots-open" id="spots-open" target="_blank" rel="noopener">🗺️ 打開我的 Google 地圖清單</a>
+    <div class="areas" id="spot-areas"></div>
+  </section>
+
+  <section id="stay">
+    <h2 class="sec-title"><i style="background:var(--yellow)"></i>住宿資訊</h2>
+    <div class="two">
+      <div class="box hotel">
+        <svg aria-hidden="true"><use href="#ic-hotel"/></svg>
+        <div>
+          <h3 id="hotel-name"></h3>
+          <p id="hotel-desc" style="margin:0"></p>
+          <ul class="links"><li><a class="pill" id="hotel-map" target="_blank" rel="noopener">📍 開啟 Google Maps</a></li></ul>
+        </div>
+      </div>
+      <div class="box">
+        <h3>旅行規則</h3>
+        <ul id="rules"></ul>
       </div>
     </div>
   </section>
