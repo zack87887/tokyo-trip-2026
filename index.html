@@ -1043,13 +1043,16 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
   }
 
   /* ---------- 匯率計算器（日圓／台幣） ---------- */
-  // 免費來源每天一筆市場中間價；主網址失敗改用官方建議的備援網址
+  // 兩個免費來源同時抓，用時間較新的一筆；比手上紀錄舊的不覆蓋。
+  // FloatRates 每 12 小時更新，給到幾點幾分（換成日本時間顯示）；
+  // currency-api 每天一筆，只給日期（當作該日 00:00 UTC），主網址失敗改用官方建議的備援網址
+  var RATE_FLOAT_URL = "https://www.floatrates.com/daily/jpy.json";
   var RATE_URLS = [
     "https://latest.currency-api.pages.dev/v1/currencies/jpy.json",
     "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/jpy.json"
   ];
   var RATE_KEY = "jpyTwdRateV1";
-  var rateNow = null; // { rate: 1 日圓換幾台幣, date: "YYYY-MM-DD" }
+  var rateNow = null; // { rate: 1 日圓換幾台幣, date: "YYYY-MM-DD", time: 日本時間 "HH:MM" 或 null, t: 資料時間毫秒 }
   var rateFromJpy = true;
   function validRateDate(s) {
     var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
@@ -1058,8 +1061,12 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
     return d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3];
   }
   function validRate(r) {
-    return r && typeof r.rate === "number" && isFinite(r.rate) && r.rate >= 0.1 && r.rate <= 0.5 && validRateDate(r.date);
+    return r && typeof r.rate === "number" && isFinite(r.rate) && r.rate >= 0.1 && r.rate <= 0.5 && validRateDate(r.date) &&
+      (r.time === undefined || r.time === null || /^([01]\d|2[0-3]):[0-5]\d$/.test(r.time)) &&
+      (r.t === undefined || (typeof r.t === "number" && isFinite(r.t)));
   }
+  // 舊紀錄沒有 t：用日期 00:00 UTC 比新舊
+  function rateT(r) { return typeof r.t === "number" ? r.t : Date.parse(r.date + "T00:00:00Z"); }
   function fmtInt(n) {
     return String(Math.round(n) || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
@@ -1067,7 +1074,8 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
     var head = document.getElementById("rate-now");
     if (!rateNow) { head.textContent = "暫時抓不到匯率，請稍後重新整理"; }
     else {
-      head.textContent = "1 日圓 ≈ " + rateNow.rate.toFixed(4) + " 台幣・1 台幣 ≈ " + (1 / rateNow.rate).toFixed(2) + " 日圓（匯率日期 " + rateNow.date + "）";
+      head.textContent = "1 日圓 ≈ " + rateNow.rate.toFixed(4) + " 台幣・1 台幣 ≈ " + (1 / rateNow.rate).toFixed(2) + " 日圓" +
+        (rateNow.time ? "（匯率時間 " + rateNow.date + " " + rateNow.time + " 日本時間）" : "（匯率日期 " + rateNow.date + "）");
     }
     calcRate();
   }
@@ -1084,7 +1092,21 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
   function fetchRate(url) {
     return withTimeout(function (opts) {
       return fetchOk(url, opts).then(function (r) { return r.json(); }).then(function (d) {
-        var r = { rate: d && d.jpy && d.jpy.twd, date: d && d.date };
+        var r = { rate: d && d.jpy && d.jpy.twd, date: d && d.date, time: null };
+        if (!validRate(r)) throw new Error("bad rate");
+        r.t = rateT(r);
+        return r;
+      });
+    });
+  }
+  // FloatRates：twd.rate 是字串、twd.date 是 GMT 時間字串；時間晚於現在 1 小時以上當壞資料
+  function fetchFloatRate() {
+    return withTimeout(function (opts) {
+      return fetchOk(RATE_FLOAT_URL, opts).then(function (r) { return r.json(); }).then(function (d) {
+        var x = d && d.twd, t = x && typeof x.date === "string" ? Date.parse(x.date) : NaN;
+        if (!x || (typeof x.rate !== "string" && typeof x.rate !== "number") || !isFinite(t) || t > Date.now() + 3600000) throw new Error("bad rate");
+        var j = new Date(t + 9 * 3600000).toISOString();
+        var r = { rate: Number(x.rate), date: j.slice(0, 10), time: j.slice(11, 16), t: t };
         if (!validRate(r)) throw new Error("bad rate");
         return r;
       });
@@ -1097,17 +1119,27 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
     try {
       document.getElementById("rate-in").addEventListener("input", calcRate);
       document.getElementById("rate-swap").addEventListener("click", function () { rateFromJpy = !rateFromJpy; calcRate(); });
-      try { var c = JSON.parse(localStorage.getItem(RATE_KEY)); if (validRate(c)) rateNow = { rate: c.rate, date: c.date }; } catch (e) {}
+      try { var c = JSON.parse(localStorage.getItem(RATE_KEY)); if (validRate(c)) rateNow = { rate: c.rate, date: c.date, time: c.time || null, t: rateT(c) }; } catch (e) {}
       if (rateNow || !window.fetch || !window.Promise) showRate();
       if (!window.fetch || !window.Promise) return;
-      // 依序試；抓到的日期比手上的舊就不用，繼續試下一個；同日或較新才更新
+      // 兩個來源同時抓，誰先回來先用；時間比手上舊就不用，同時間或較新才更新
+      var pending = 2;
+      var take = function (r) {
+        if (rateNow && r.t < rateNow.t) return false;
+        rateNow = r;
+        try { localStorage.setItem(RATE_KEY, JSON.stringify({ rate: r.rate, date: r.date, time: r.time, t: r.t, at: Date.now() })); } catch (e) {}
+        showRate();
+        return true;
+      };
+      var done = function () { pending--; if (pending === 0 && !rateNow) showRate(); };
+      fetchFloatRate().then(take, function () {}).then(done, done);
+      // currency-api：主網址抓到但比手上舊、或失敗，才試備援網址
       var attempt = function (i) {
-        if (i >= RATE_URLS.length) { showRate(); return; }
+        if (i >= RATE_URLS.length) { done(); return; }
         fetchRate(RATE_URLS[i]).then(function (r) {
-          if (rateNow && r.date < rateNow.date) { attempt(i + 1); return; }
-          rateNow = r;
-          try { localStorage.setItem(RATE_KEY, JSON.stringify({ rate: r.rate, date: r.date, at: Date.now() })); } catch (e) {}
-          showRate();
+          var used = false;
+          try { used = take(r); } catch (e) {}
+          if (used) done(); else attempt(i + 1);
         }, function () { attempt(i + 1); });
       };
       attempt(0);
