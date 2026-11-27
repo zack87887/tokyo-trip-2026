@@ -156,6 +156,9 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
 .ride li b{display:block; font-size:.95rem}
 .ride li small{display:block; color:var(--muted); font-size:.85rem; line-height:1.5}
 .ride .ride-tip{margin:0; padding:0 12px 8px; font-size:.85rem; color:var(--muted)}
+.ride.walk{background:#EEF8EC}
+.ride.walk summary{padding-left:10px; padding-right:10px}
+.ride.walk li{font-size:.92rem; line-height:1.5}
 .links{list-style:none; margin:8px 0 0; padding:0; display:grid; gap:6px}
 .links li{display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px}
 .pill{display:inline-flex; align-items:center; gap:4px; text-decoration:none; border:var(--thin); border-radius:999px; padding:2px 12px; background:var(--green); font-weight:700; font-size:.92rem}
@@ -637,6 +640,17 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
     if (r.提醒) d.appendChild(el("p", { "class": "ride-tip" }, "💡 " + r.提醒));
     return d;
   }
+  // 「🚶 出站怎麼走」：預設收合，步驟逐條編號；沒有步驟就不畫
+  function walkBox(w) {
+    if (!w || !list(w.步驟).length) return null;
+    var d = el("details", { "class": "ride walk" });
+    d.appendChild(el("summary", null, "🚶 " + (w.摘要 || "出站怎麼走")));
+    var ol = el("ol");
+    list(w.步驟).forEach(function (step) { ol.appendChild(el("li", null, String(step))); });
+    d.appendChild(ol);
+    if (w.提醒) d.appendChild(el("p", { "class": "ride-tip" }, "💡 " + w.提醒));
+    return d;
+  }
   function linkList(links) {
     var ul = el("ul", { "class": "links" });
     list(links).forEach(function (l) {
@@ -766,6 +780,7 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
         if (it.時間) card.appendChild(el("div", { "class": "tl-time" }, it.時間));
         if (it.地點) card.appendChild(el("h4", { "class": "tl-place" }, it.地點));
         var tags = tagRow(it); if (tags) card.appendChild(tags);
+        var wb = walkBox(it.出站); if (wb) card.appendChild(wb);
         if (it.說明) card.appendChild(el("p", null, it.說明));
         var rb = rideBox(it.乘車); if (rb) card.appendChild(rb);
         var gs = list(it.分組);
@@ -775,8 +790,12 @@ section{padding:22px 0; scroll-margin-top:calc(var(--nav-h) + 8px)}
             var gb = el("div", { "class": "group" });
             gb.appendChild(el("b", null, x.名稱 || ""));
             var gt = tagRow(x); if (gt) gb.appendChild(gt);
+            // 出站框預設在內容前；「出站在乘車後」的分組（先搭車再走路）改放乘車框後
+            var gw = walkBox(x.出站);
+            if (gw && !x.出站在乘車後) gb.appendChild(gw);
             if (x.內容) gb.appendChild(el("p", { style: "white-space:pre-line" }, x.內容));
             var gr = rideBox(x.乘車); if (gr) gb.appendChild(gr);
+            if (gw && x.出站在乘車後) gb.appendChild(gw);
             var gl = linkList(x.連結); if (gl) gb.appendChild(gl);
             g.appendChild(gb);
           });
